@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only verification of VBOI iteration 4. All four new features work as specified: (1) Preset Param Hydration across 5 module pages (fluorescence-confocal, handheld-raman, portable-oct); (2) CSV Export per snapshot triggers browser download with correct filename and multi-section content; (3) Beam Cross-Section panel renders after NPY upload with select/axis/index/chart subcomponents; (4) Instructor Mode toggle adds sticky banner, applies pointer-events-none to <main>, blocks slider interactions, keeps sidebar interactive, and cleanly restores on second toggle.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_evidence": {
+    "preset_hydration_fluorescence_confocal": "After loading preset on Home (fresh localStorage → 4 results), /modules/fundamentals shows wavelength=488, muA=0.1, muS=8 (defaults would be 700/0.15/2.0). Body contains '0.12' near penetration depth metric card. /modules/lens-ray-tracing shows focal=4, aperture=6. /modules/microscope main text contains 'confocal'.",
+    "preset_hydration_handheld_raman": "/modules/fiber-optic: NA=0.22, core=200. /modules/beam-propagation: w0=40, lambda=785. /modules/raman: logLam=5, p=0.01, baseline toggle data-state=true.",
+    "preset_hydration_portable_oct": "/modules/image-processing: img-filter-edge button rendered with active/highlighted styling (class captured; edge button visually active).",
+    "csv_export": "results-dashboard shows 4 download buttons matching result-download-{id}. Clicking first triggers download named 'vboi_fundamentals_2026-08-02T08-11-38-553Z.csv'. Content starts with '# VBOI Snapshot' and contains 'Instrument,Portable OCT', 'Module,Fundamentals', 'Module ID,fundamentals', 'Saved at,...', 'Summary,λ 1310 nm...', 'Parameter,Value' section with wavelength/muA/muS rows, and 'Metric,Value' section with penetrationDepth_mm=0.328.",
+    "beam_cross_section": "After set_input_files on hidden input[data-testid=beam-npy-upload] with /tmp/gaussian_field.npy (64×64 float32), a new beam-cross-section panel appears. All 4 sub-testids visible (select, axis with 2 buttons, index, chart). Index slider has aria-valuemin=0 valuemax=63 valuenow=0; after 10 ArrowRight becomes 10. Chart SVG contains 2 <path> elements (line + area fill). Switching Row→Column via the second axis button keeps slider (still 10) but re-renders chart.",
+    "instructor_lock_on": "vboi-lock-banner absent initially; button text 'Instructor mode OFF'. After 1 click: banner visible with text 'Instructor mode · read-only— sliders, uploads and Save are disabled while locked'; button text becomes 'Instructor mode ON'; <main> class contains 'pointer-events-none'. Attempting to click beam-waist-slider (force=True) + ArrowRight keeps aria-valuenow at 50 (blocked). Sidebar link 'home' still accessible.",
+    "instructor_lock_off": "Second click removes banner, removes pointer-events-none from <main>. ArrowRight on beam-waist-slider now works: 50 → 51."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useModulePrefill uses lazy useState (captures once on mount) — this works well for the intended UX (loading a preset then navigating to the module hydrates sliders) but means that if a user is already on a module page and a preset is loaded via Home in another tab, the sliders will NOT update until they leave and return. Consider documenting this in a JSDoc note or exposing an optional 'reset key' arg for advanced flows.",
+    "csvExport.js — snapshotToCsv iterates params/metrics with Object.entries which preserves insertion order for string keys but is not deterministic across snapshot sources; consider sorting keys alphabetically so diff-based comparison across snapshots is stable.",
+    "Layout.jsx — pointer-events-none on <main> is CSS-only; a determined user could still tab into inputs via keyboard when the tab order does not include the sidebar. Consider also setting `inert` (React 19 supported) or `aria-disabled` + tabindex=-1 sweep on descendants for true keyboard lock.",
+    "InstructorContext lock is session-only per spec (not persisted), but a page refresh silently drops the state — that is fine, however consider a small UX hint (e.g., store in sessionStorage) so an accidental refresh in a lecture setting doesn't unlock in front of students."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% for all iteration-4 acceptance criteria"},
+  "seed_data_creation": "Used existing /tmp/gaussian_field.npy (64×64 float32). No new fixtures created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All iter-4 testids verified working: result-download-{id} in ResultsDashboard, beam-cross-section + beam-cross-section-{select,axis,index,chart} in BeamPropagation (only rendered when at least one NPY item in gallery), vboi-lock-toggle in Sidebar footer, vboi-lock-banner in Layout sticky under header. NPY upload input has class='hidden' → use state='attached' with wait_for_selector, or skip the wait and go straight to set_input_files. useModulePrefill defaults per module: fundamentals(700/0.15/2.0), lens(defaults with f/aperture/r/kSA), beam(50/633), fiber(NA=0.22/core=200/wd=2), microscope(confocal/1.2/1.0), raman(baselineOn=true/logLam=5/pAsym=0.01), image-processing(none/128). Lock does NOT persist across page reload (session-only)."
+}

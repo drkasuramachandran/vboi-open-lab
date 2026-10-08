@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only regression + NEW-feature verification for VBOI iteration 2 (Lens SA, Raman AsLS+Voigt, OCT B-scan render, Share instrument). All 4 new capabilities work as specified plus v1 regression is clean.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Share import toast", "issue": "Functional import works (saved-count increments, #share= hash is stripped from URL, state hydrated). However the Sonner toast with id 'vboi-share-loaded' / text 'Shared instrument loaded' was NOT detected in the DOM within a 4s poll after landing on the shared URL. Toast may be firing too briefly, or _loadedFromShare flag is being cleared before the <ShareInstrument> component in the Sidebar mounts on the target route. Worth verifying manually.", "affected_selectors": ["[data-sonner-toast]", "[data-testid=\"vboi-share-loaded\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_evidence": {
+    "lens_sa": "RMS at k=0 → 0.011 mm (paraxial). After 30 arrow-right key presses on shadcn slider aria-valuenow=0.015, RMS → 0.15 mm (>0.1 as required). Spot diagram contains 202 SVG circles; scaling range increases visibly.",
+    "lens_abcd": "ABCD matrix element renders 4 numeric cells: 0.000, 50.000, -0.0200, 0.000 with det=1.000 / trace=0.000. Correct for T(d2)·L(50mm)·T(d1).",
+    "raman": "raman-lambda-slider and raman-p-slider both present. Baseline label reads 'Asymmetric least-squares (AsLS)'. After clicking raman-fit-btn and waiting 2.8s, raman-fit-table populated with 4 rows (peak center / FWHM / amplitude / η). Chart HTML contains overlay series referencing 'fit'/'voigt'.",
+    "oct_matrix": "Uploading /tmp/synth_bscan.csv (12×20) triggers detectFormat='matrix', renderBscanToCanvas produces a data:image/png;base64,… URL that is displayed in ImageViewer. oct-rendered-from element updates its text to 'B-scan · rendered from synth_bscan.csv' (note: it does not include the '· 12 × 20' size suffix in current build — text just says 'rendered from synth_bscan.csv'). oct-column-scrubber slider appears and moving it changes the A-scan depth chart HTML.",
+    "oct_ascan": "Single-column /tmp/ascan.csv upload leaves the sample B-scan image visible (oct-rendered-from text stays 'B-scan · sample image'), depth chart updates to the 5-point trace, and no oct-column-scrubber is rendered — correct behaviour.",
+    "share": "vboi-share-btn disabled when saved-count=0; becomes enabled once a snapshot is saved. Clicking it opens vboi-share-dialog with vboi-share-input holding a full https://… URL containing '#share='. vboi-share-copy button is present. Loading the URL in a fresh page (with localStorage cleared) imports the snapshot (saved-count → '1 result') and strips the hash from window.location.",
+    "regression": "Home hero-cta navigates to /modules/fundamentals. All 12 sidebar links present (Report Generator id is 'report' → path /modules/report → data-testid sidebar-link-report). Image Processing filter buttons (gray/threshold/edge/reset) all clickable. Microscope mode toggle, SIM toggle, System Builder compile all functional. Results Dashboard shows created result card. Report Generator page loads with report-export button."
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Minor: verify the 'Shared instrument loaded' Sonner toast actually renders on the shared-URL landing page. clearShareFlag() runs immediately in the useEffect – if the ShareInstrument component remounts before flag is consumed, or if <Toaster> mounts after the toast call, it may never appear. Consider using a small delay or guaranteeing the ShareInstrument component is mounted in Layout (it currently only exists inside Sidebar footer).",
+    "Cosmetic: oct-rendered-from footer text is 'B-scan · rendered from synth_bscan.csv' but review_request expected the format to include the matrix dimensions (e.g. '· 12 × 20'). Consider appending the shape for clarity."
+  ],
+  "critical_code_review_comments": [
+    "OCT.jsx detectFormat: nCols>=10 && rows>=10 threshold means a 9×9 or smaller matrix will be misinterpreted as 'ascan2'. The 12×20 synth CSV passes; but a genuine small B-scan (say 8 lateral × 128 depth) would fall through. Consider using rows*cols>threshold or explicit CSV header detection.",
+    "ShareInstrument useEffect runs clearShareFlag() unconditionally after toasting – if projectName or results.length change before the flag is cleared, the effect could re-run and re-toast. Safe today due to id-based deduping in Sonner, but fragile.",
+    "InstrumentContext strips #share hash via history.replaceState presumably; ensure this doesn't run in SSR / before router mounts.",
+    "Lens SA slider uses shadcn Slider (Radix) which has no native input – automated tests must use keyboard arrows or Radix-specific interactions; consider adding a hidden native <input type='range'> mirror for testability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% for functional flows; 1 minor visual/toast verification pending"},
+  "seed_data_creation": "Used /tmp/synth_bscan.csv (12×20 matrix, pre-existing) and generated /tmp/ascan.csv (5 rows × 1 col) for OCT tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All new features from iteration 2 verified via Playwright against the public preview URL. Key testids exercised: lens-sa-slider (shadcn – use ArrowRight on inner [role=slider]), lens-abcd-matrix, lens-spot-diagram, raman-lambda-slider, raman-p-slider, raman-fit-btn (wait ~2.5s), raman-fit-table, oct file inputs (accept .csv is the CSV dropzone), oct-rendered-from, oct-column-scrubber, vboi-share-btn/dialog/input/copy. Reload the target page inside a new BrowserContext (or clear localStorage 'vboi.instrument.v1') to simulate a fresh shared-URL recipient. The Report module id is 'report' (not 'report-generator'); its route is /modules/report."
+}

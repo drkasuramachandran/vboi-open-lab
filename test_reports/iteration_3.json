@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only verification of VBOI iteration 3 (Zernike coma+astigmatism sliders, NPY beam import, Home instrument presets, Share dialog QR code). All four new features work as specified, plus the v2 share-URL regression still passes cleanly (toast now confirmed to render on the recipient page).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Lens & Ray Tracing", "issues": ["With k_C=0.0075 and k_AST=0.005 the reported RMS spot changes from 0.010 mm (baseline) to only 0.016 mm. The spot pattern does render asymmetric/elliptical visually, but the numerical RMS delta is quite small — a user glancing only at the metric card may not perceive that aberrations are turned on. Consider scaling the aberration coefficients so their max sliders produce a more dramatic RMS increase, or exposing separate 'coma RMS' / 'ast RMS' contributions."]}
+    ]
+  },
+  "test_evidence": {
+    "lens_aberrations": "Sliders lens-sa-slider, lens-coma-slider, lens-ast-slider all present under a 'Third-order aberrations' section header. Baseline RMS=0.010 mm. After 15 ArrowRight presses on coma → aria-valuenow=0.0075, RMS=0.016 mm. After 10 ArrowRight on ast → aria-valuenow=0.005, RMS=0.016 mm. Legend chips 'SA', 'Coma', 'Ast' rendered below spot diagram.",
+    "beam_npy": "input[data-testid=beam-npy-upload] (hidden inside a <label>; set_input_files works). Uploading /tmp/gaussian_field.npy fires toast 'Loaded gaussian_field.npy\\n64×64 · <f4 · [4.01e-5, 1.05e+0]'. Gallery card appears with amber 'NPY' badge, beam-npy-meta text '64×64 · <f4', and img.src starts with data:image/png;base64,iVBORw0KGgo… (viridis heatmap rendered client-side).",
+    "beam_png_regression": "'+ Drop image / PNG · JPG' label still present in gallery — PNG upload tile intact.",
+    "presets_fresh": "Fresh localStorage → saved-count='0 results'. Clicking preset-load-handheld-raman does NOT open preset-confirm-dialog; saved-count immediately becomes '3 results'; toast 'Handheld Raman preset loaded — 3 snapshots · 3 modules combined'.",
+    "presets_confirm": "With state now populated, clicking preset-load-fluorescence-confocal opens preset-confirm-dialog. Cancel keeps saved-count='3 results'; a second attempt + preset-confirm-yes replaces to '4 results'. Portable OCT preset (also 4 snapshots) via confirm → '4 results'.",
+    "share_qr": "vboi-share-btn (enabled with saved snapshots) opens vboi-share-dialog. vboi-share-qr contains exactly 1 <svg> element (QRCodeSVG rendered) for a URL of 1544 chars. Well under the 2900-char fallback threshold — qrOk path exercised. Fallback path not exercised in this run because no realistic preset produces a URL >2900 chars.",
+    "share_regression": "New BrowserContext → load Handheld Raman preset → open share dialog → grab URL (len=1304) → open URL in a second fresh BrowserContext → saved-count hydrates to '3 results' AND toast 'Shared instrument loaded — Handheld Raman · 3 snapshots imported' is now visible in the DOM (fixes the minor toast-visibility concern raised in iteration_2)."
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional visual polish only: consider amplifying the RMS-spot response to coma/astigmatism so that the aberration effect is more evident in the numeric metric (currently 0.010 → 0.016 mm at slider max).",
+    "Consider explicitly testing / adding a preset that produces a URL >2900 chars to exercise the QR fallback message ('URL too large for a QR code'). Current presets are compact so only the qrOk branch is covered by automated tests."
+  ],
+  "critical_code_review_comments": [
+    "ShareInstrument.jsx computes url = buildShareUrl(...) on every render even when the dialog is closed — this runs base64+lz-string encoding on the whole results array on every context update. Consider memoising with useMemo keyed on (results, selected, projectName) or lazily building only when `open===true`.",
+    "presets.js snapshots carry hard-coded metric values (e.g. rmsSpot_mm:0.008 for fluorescence-confocal). If a user opens the corresponding module after loading the preset, the sliders show default params and recompute different metrics than the ones displayed in the Results Dashboard. Consider either storing the actual params in snapshots (so the module can hydrate its state) or clarifying in the UI that presets are pre-computed reference cards.",
+    "Home.jsx `requestLoad` branches on `results.length`; if a user has selected modules but no saved snapshots (results.length===0 but selected.length>0) the preset silently overwrites `selected` without confirming. Consider `results.length>0 || selected.length>0`.",
+    "npyParser.js — parseNpy dtype table lacks big-endian variants (>f4, >f8). Not required by review but real MEEP/Tidy3D files sometimes use system-endian; adding a graceful error for unsupported dtypes would be safer than silent NaNs."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% for all iteration-3 acceptance criteria + regression"},
+  "seed_data_creation": "Used pre-existing /tmp/gaussian_field.npy (64×64 float32) — no new fixtures created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration-3 features are verified. Key testids: presets-section, preset-card-{id}, preset-load-{id}, preset-confirm-dialog/yes/cancel, lens-coma-slider, lens-ast-slider, beam-npy-upload (hidden input inside a <label> — use `page.set_input_files('input[data-testid=beam-npy-upload]', path)` and DO NOT wait_for_selector on visibility), beam-npy-meta, vboi-share-qr (single <svg> child means QR was rendered; a text fallback is inside the same testid when url.length>2900). To exercise the fresh-share flow, always create a brand new BrowserContext (localStorage.clear alone is fine too). Sonner toast on the recipient page is now visible in DOM as 'Shared instrument loaded'. Preset IDs are exactly fluorescence-confocal, handheld-raman, portable-oct (snapshot counts 4/3/4 respectively)."
+}
